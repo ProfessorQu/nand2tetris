@@ -39,5 +39,53 @@ CHIP CPU {
         pc[15];          // address of next instruction
 
     PARTS:
-    // Put your code here:
+    Not(in=instruction[15], out=notOp);
+    Not(in=notOp, out=op);  // Check op code
+    
+    // D Register
+    And(a=op, b=instruction[4], out=loadD);
+    
+    DRegister(in=aluOut, load=loadD, out=aluIn1);
+
+    // A Register
+    Mux16(a=instruction, b=aluOut, sel=op, out=aIn);
+
+    // Check if A shoudl get a new value
+    And(a=op, b=instruction[5], out=instructionLoadA);
+    Or(a=notOp, b=instructionLoadA, out=loadA);
+
+    ARegister(in=aIn, load=loadA, out=aOut, out[0..14]=addressM);
+
+    Mux16(a=aOut, b=inM, sel=instruction[12], out=aluIn2);
+
+    // outM
+    ALU(
+        x=aluIn1, y=aluIn2,
+        zx=instruction[11], nx=instruction[10],
+        zy=instruction[9], ny=instruction[8],
+        f=instruction[7], no=instruction[6],
+        out=aluOut, out=outM, zr=outZero, ng=outNeg
+    );
+    
+    // writeM
+    And(a=instruction[3], b=op, out=writeM);
+
+    // PC
+    Not(in=outNeg, out=outNotNeg);              // Test if output is not negative
+    Not(in=outZero, out=outNotZero);            // Test if output is non-zero
+
+    And(a=outNotNeg, b=outNotZero, out=outPos); // Test if output is positive
+
+    And(a=outPos, b=instruction[0], out=checkPos);      // If jmp3 and positive
+    And(a=outZero, b=instruction[1], out=checkZero);    // If jmp2 and zero
+    And(a=outNeg, b=instruction[2], out=checkNeg);      // If jmp1 and negative
+    
+    Or(a=checkPos, b=checkZero, out=checkPosOrZero);   // Combine 
+    Or(a=checkPosOrZero, b=checkNeg, out=pcPreload);
+
+    And(a=pcPreload, b=op, out=notInc, out=pcLoad); // Check if op code is 1
+
+    Not(in=notInc, out=inc);    // Check if should increment PC
+
+    PC(in=aOut, load=pcLoad, inc=inc, reset=reset, out[0..14]=pc);
 }
