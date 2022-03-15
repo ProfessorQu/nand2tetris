@@ -1,110 +1,92 @@
 import sys
+from tables import comp_table, dest_table, jmp_table, symbol_table
 
 
-comp_table = {
-    '0': '101010',
-    '1': '111111',
-    '-1': '111010',
-    'D': '001100',
-    'A': '110000',
-    '!D': '001101',
-    '!A': '110001',
-    '-D': '001111',
-    '-A': '110011',
-    'D+1': '011111',
-    'A+1': '110111',
-    'D-1': '001110',
-    'A-1': '110010',
-    'D+A': '000010',
-    'D-A': '010011',
-    'A-D': '000111',
-    'D&A': '000000',
-    'D|A': '010101',
-}
-
-jmp_table = {
-    '': '000',
-    'JGT': '001',
-    'JEQ': '010',
-    'JGE': '011',
-    'JLT': '100',
-    'JNE': '101',
-    'JLE': '110',
-    'JMP': '111',
-}
-
-dest_table = {
-    '': '000',
-    'M': '001',
-    'D': '010',
-    'MD': '011',
-    'A': '100',
-    'AM': '101',
-    'AD': '110',
-    'AMD': '111',
-}
-
+variable_cursor = 16
+root = sys.argv[1]
 
 def format_line(line: str) -> str:
+    # Strip whitespace
     line = line.strip()
 
+    # Remove comment-only lines and empty lines
     if line.startswith('//'):
         return ''
     if line == '':
         return ''
+    
+    # Remove comments
+    line = line.split('//')[0]
 
     return line
 
+def translateAinstruction(line: str) -> str:
+    global variable_cursor
 
-def parse_line(line: str) -> str:
-    binary = '0'
+    if line.isdigit():
+        return f'0{bin(int(line))[2:].zfill(15)}'
+    if line not in symbol_table:
+        symbol_table[line] = variable_cursor
+        variable_cursor += 1
 
-    if line[0] == '@':
-        binary = bin(int(line[1:]))[2:]
-        binary = binary.zfill(16)
+    return f'0{bin(symbol_table[line])[2:].zfill(15)}'
 
-        return binary
+def translateCinstruction(line: str) -> str:
+    dest, jmp = '', ''
 
-    binary = '111'
-    dest, jump = '', ''
-
-    if '=' in line:
+    if "=" in line:
         dest, comp = line.split('=')
-    else:
-        comp = line
-
-    if ';' in comp:
-        comp, jump = comp.split(';')
-
+        dest = dest.strip()
+        comp = comp.strip()
+        
+    if ";" in line:
+        comp, jmp = line.split(';')
+        comp = comp.strip()
+        jmp = jmp.strip()
+    
+    a = '0'
     if 'M' in comp:
-        binary += '1'
+        comp = comp.replace('M', 'A')
+        a = '1'
 
-        temp = comp.replace('M', 'A')
-        binary += comp_table[temp]
+    return f'111{a}{comp_table[comp]}{dest_table[dest]}{jmp_table[jmp]}'
+
+def translate(line: str) -> str:
+    line = format_line(line)
+
+    if line.startswith('@'):
+        return translateAinstruction(line[1:])
     else:
-        binary += '0'
+        return translateCinstruction(line)
 
-        binary += comp_table[comp]
+def first_pass():
+    index = 0
 
-    binary += dest_table[dest]
-    binary += jmp_table[jump]
+    with open(root, 'r') as f:
+        for line in f:
+            line = format_line(line)
 
-    return binary
+            if line != '':
+                if line.startswith('('):
+                    symbol_table[line[1:-1]] = index
+                else:
+                    index += 1
+
+def assemble():
+    hackfilename = root.replace('.asm', '.hack')
+
+    with open(root, 'r') as asmfile, open(hackfilename, 'w') as hackfile:
+        for line in asmfile:
+            line = format_line(line)
+
+            if line != '':  
+                if line.startswith('('):
+                    continue
+                hackfile.write(translate(line) + '\n')
 
 def main():
-    lines = ''
+    first_pass()
+    assemble()
 
-    filename = sys.argv[1]
-    asmfile = open(filename, 'r')
-
-    for line in asmfile.readlines():
-        line = format_line(line)
-        if line != '':
-            lines += parse_line(line) + '\n'
-    
-    filename = filename.replace('.asm', '.hack')
-
-    hackfile = open(filename, 'w')
-    hackfile.write(lines)
-
-main()
+if __name__ == '__main__':
+    main()
