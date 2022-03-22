@@ -12,9 +12,9 @@ def format_line(line: str) -> str:
     # Remove comment-only lines and empty lines
     if line.startswith('//'):
         return ''
-    if line == '':
+    if not line:
         return ''
-    
+
     # Remove comments
     line = line.split('//')[0]
 
@@ -79,9 +79,7 @@ def assemble():
         for line in asmfile:
             line = format_line(line)
 
-            if line != '':  
-                if line.startswith('('):
-                    continue
+            if line != '' and not line.startswith('('):
                 hackfile.write(translate(line) + '\n')
 
 def main():
